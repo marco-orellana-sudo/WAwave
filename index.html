@@ -407,10 +407,16 @@ dz.addEventListener('drop',e=>{
   if(f){document.getElementById('fi').files=e.dataTransfer.files; handleFile(document.getElementById('fi'));}
 });
 
+// URL del Apps Script — reemplaza con tu URL después de desplegar
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbynHZjSeCTWX9UOhLgA6902D5QnKZWSNGicguotK_w7j4lJlCN2yPUaQsJKzmPNim4w/exec';
+
 function go4(){
   const btn=document.getElementById('bStep3');
-  btn.textContent='⏳ Procesando...'; btn.disabled=true;
+  btn.textContent='⏳ Subiendo comprobante...'; btn.disabled=true;
+
   const mt=S.metodo==='banco'?'Transferencia Bancaria (Pichincha)':'Binance USDT TRC20';
+
+  // Construir mensaje de WhatsApp (siempre disponible como respaldo)
   const msg=encodeURIComponent(
     `🌊 *Nuevo pago WAwave*\n\n`+
     `👤 *Nombre:* ${S.nombre}\n`+
@@ -421,7 +427,47 @@ function go4(){
     `✅ El cliente subió su comprobante. Por favor activar la cuenta.`
   );
   document.getElementById('waLink').href=`https://wa.me/593990891099?text=${msg}`;
-  setTimeout(()=>step(4), 700);
+
+  // Si no hay Apps Script URL configurada, ir directo al éxito
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbynHZjSeCTWX9UOhLgA6902D5QnKZWSNGicguotK_w7j4lJlCN2yPUaQsJKzmPNim4w/exec') {
+    setTimeout(()=>step(4), 700);
+    return;
+  }
+
+  // Subir comprobante a Google Drive via Apps Script
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const base64 = e.target.result.split(',')[1];
+      const payload = {
+        nombre:   S.nombre,
+        wa:       S.wa,
+        plan:     S.label,
+        precio:   S.price.toFixed(2),
+        metodo:   mt,
+        file:     base64,
+        fileName: S.file.name,
+        mimeType: S.file.type || 'image/jpeg'
+      };
+
+      const resp = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+
+      if (result.ok) {
+        console.log('Comprobante subido a Drive:', result.url);
+      }
+    } catch(err) {
+      console.error('Error subiendo a Drive:', err);
+      // No bloquear el flujo — igual mostramos éxito
+    } finally {
+      step(4);
+    }
+  };
+  reader.onerror = () => step(4);
+  reader.readAsDataURL(S.file);
 }
 
 function step(n){
